@@ -19,6 +19,12 @@ class Save {
     }
 }
 
+const createSavesDirIfNotExists = () => {
+    if (!fs.existsSync(savesDir)) {
+        fs.mkdirSync(savesDir, { recursive: true });
+    }
+};
+
 const loadData = () => {
     if (fs.existsSync(dataFilePath)) {
         const dataBuffer = fs.readFileSync(dataFilePath);
@@ -71,6 +77,8 @@ const manageSaves = (playerId, newSave) => {
     const combinedSaves = [...lastSlots, ...historySlots];
     fs.writeFileSync(playerFile, JSON.stringify(combinedSaves, null, 2));
 };
+
+createSavesDirIfNotExists(); // Ensure the saves directory exists
 
 app.post('/save', (req, res) => {
     const { playerId, ident, deviceDescription, timeStamp, saveData } = req.body;
