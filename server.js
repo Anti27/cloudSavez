@@ -11,6 +11,16 @@ const savesDirPath = '/app/data/saves/';
 app.use(express.json());
 app.use(cors());
 
+class Save {
+    constructor(playerId, ident, deviceDescription, timeStamp, saveData) {
+        this.playerId = playerId;
+        this.ident = ident || '';
+        this.deviceDescription = deviceDescription;
+        this.timeStamp = timeStamp;
+        this.saveData = saveData;
+    }
+}
+
 const loadData = () => {
     try {
         if (fs.existsSync(dataFilePath)) {
@@ -67,7 +77,7 @@ app.post('/save', (req, res) => {
         existingSaves.historySlots.push(existingSaves.lastSlots.shift());
     }
 
-    existingSaves.lastSlots.push({ playerId, ident, deviceDescription, timeStamp, saveData });
+    existingSaves.lastSlots.push(new Save(playerId, ident, deviceDescription, timeStamp, saveData));
 
     try {
         fs.writeFileSync(playerSaveFilePath, JSON.stringify(existingSaves, null, 2));
