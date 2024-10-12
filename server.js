@@ -4,9 +4,20 @@ const cors = require('cors');
 const app = express();
 const port = 3000;
 const dataFilePath = '/app/data/items.json';
+const savesDir = '/app/data/saves/';
 
 app.use(express.json());
 app.use(cors());
+
+class Save {
+    constructor(playerId, ident, deviceDescription, timeStamp, saveData) {
+        this.playerId = playerId;
+        this.ident = ident;
+        this.deviceDescription = deviceDescription;
+        this.timeStamp = timeStamp;
+        this.saveData = saveData;
+    }
+}
 
 const loadData = () => {
     if (fs.existsSync(dataFilePath)) {
@@ -16,32 +27,103 @@ const loadData = () => {
     return [];
 };
 
-let data = loadData();
+const checkIdentUnique = (ident) => {
+    const playerData = fs.readdirSync(savesDir);
+    for (const file of playerData) {
+        const content = JSON.parse(fs.readFileSync(`${savesDir}${file}`));
+        if (content.ident === ident) {
+            return false;
+        }
+    }
+    return true;
+};
 
-app.post('/items', (req, res) => {
-    const newItem = req.body;
-    data.push(newItem);
-    fs.writeFileSync(dataFilePath, JSON.stringify(data, null, 2));
-    res.status(201).json(newItem);
+const manageSaves = (playerId, newSave) => {
+    const playerFile = `${savesDir}${playerId}.json`;
+    const historySlots = [];
+    const lastSlots = [];
+
+    if (fs.existsSync(playerFile)) {
+        const playerSaves = JSON.parse(fs.readFileSync(playerFile));
+        playerSaves.forEach(save => {
+            if (lastSlots.length < 5) {
+                lastSlots.push(save);
+            } else {
+                historySlots.push(save);
+            }
+        });
+    }
+
+    if (lastSlots.length >= 5) {
+        const oldestLastSlot = lastSlots[0];
+        const oldestDate = new Date(oldestLastSlot.timeStamp).toISOString().split('T')[0];
+        const sameDateInHistory = historySlots.findIndex(save => new Date(save.timeStamp).toISOString().split('T')[0] === oldestDate);
+
+        if (sameDateInHistory !== -1) {
+            historySlots.splice(sameDateInHistory, 1);
+        } else {
+            historySlots.shift();
+        }
+        lastSlots.shift();
+    }
+    lastSlots.push(newSave);
+    
+    const combinedSaves = [...lastSlots, ...historySlots];
+    fs.writeFileSync(playerFile, JSON.stringify(combinedSaves, null, 2));
+};
+
+app.post('/save', (req, res) => {
+    const { playerId, ident, deviceDescription, timeStamp, saveData } = req.body;
+
+    if (!playerId || !deviceDescription || !timeStamp || !saveData) {
+        return res.status(400).send('Invalid input');
+    }
+
+    if (ident && !checkIdentUnique(ident)) {
+        return res.status(400).send('Ident must be unique');
+    }
+
+    const newSave = new Save(playerId, ident, deviceDescription, timeStamp, saveData);
+    manageSaves(playerId, newSave);
+    
+    if (ident) {
+        const identFile = `${savesDir}${ident}.json`;
+        const identData = { playerId, ident };
+        if (!fs.existsSync(identFile)) {
+            fs.writeFileSync(identFile, JSON.stringify(identData, null, 2));
+        }
+    }
+
+    res.status(201).json(newSave);
 });
 
-app.get('/items', (req, res) => {
-    res.json(data);
+app.get('/getSavesByPlayerId/:playerId', (req, res) => {
+    const playerId = req.params.playerId;
+    const playerFile = `${savesDir}${playerId}.json`;
+    if (fs.existsSync(playerFile)) {
+        const saves = JSON.parse(fs.readFileSync(playerFile));
+        return res.json(saves);
+    }
+    res.status(404).send('Saves not found');
 });
 
-app.put('/items/:id', (req, res) => {
-    const { id } = req.params;
-    const updatedItem = req.body;
-    data[id] = updatedItem;
-    fs.writeFileSync(dataFilePath, JSON.stringify(data, null, 2));
-    res.json(updatedItem);
+app.get('/getSavesByIdent/:ident', (req, res) => {
+    const ident = req.params.ident;
+    const identFile = `${savesDir}${ident}.json`;
+    if (fs.existsSync(identFile)) {
+        const identData = JSON.parse(fs.readFileSync(identFile));
+        const playerFile = `${savesDir}${identData.playerId}.json`;
+        if (fs.existsSync(playerFile)) {
+            const saves = JSON.parse(fs.readFileSync(playerFile));
+            return res.json(saves);
+        }
+    }
+    res.status(404).send('Saves not found');
 });
 
-app.delete('/items/:id', (req, res) => {
-    const { id } = req.params;
-    data.splice(id, 1);
-    fs.writeFileSync(dataFilePath, JSON.stringify(data, null, 2));
-    res.status(204).send();
+app.get('/returnAllPlayerIds', (req, res) => {
+    const playerFiles = fs.readdirSync(savesDir).map(file => file.replace('.json', ''));
+    res.json(playerFiles);
 });
 
 app.listen(port, '0.0.0.0', () => {
