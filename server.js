@@ -34,7 +34,6 @@ const loadData = () => {
 };
 
 let playerIdentMapping = loadData();
-
 const saveMapping = () => {
     try {
         fs.writeFileSync(dataFilePath, JSON.stringify(playerIdentMapping, null, 2));
@@ -53,31 +52,24 @@ app.post('/save', (req, res) => {
     if (!playerId || !deviceDescription || !timeStamp || !saveData) {
         return res.status(400).json({ error: "Invalid input data" });
     }
-
     if (ident && !checkIdentUnique(playerId, ident)) {
         return res.status(400).json({ error: "Ident must be unique for a playerId" });
     }
-
     if (ident) {
         playerIdentMapping[ident] = playerId;
         saveMapping();
     }
-
     const playerSaveFilePath = path.join(savesDirPath, `${playerId}.json`);
     let existingSaves;
-
     try {
         existingSaves = fs.existsSync(playerSaveFilePath) ? JSON.parse(fs.readFileSync(playerSaveFilePath)) : { lastSlots: [], historySlots: [] };
     } catch (error) {
         console.error('Error reading existing saves:', error);
         return res.status(500).json({ error: 'Failed to read existing saves' });
     }
-
-    // Limit the number of last saves to 5
     if (existingSaves.lastSlots.length >= 5) {
         existingSaves.historySlots.push(existingSaves.lastSlots.shift());
     }
-
     existingSaves.lastSlots.push(new Save(playerId, ident, deviceDescription, timeStamp, saveData));
 
     try {
@@ -95,20 +87,18 @@ app.delete('/deleteAllSaves', (req, res) => {
             console.error('Error reading saves directory:', err);
             return res.status(500).json({ error: 'Unable to scan directory: ' + err });
         }
-
         files.forEach(file => {
             fs.unlinkSync(path.join(savesDirPath, file));
         });
-
-        res.status(200).json({ message: 'All saves deleted' });
+        playerIdentMapping = {};
+        saveMapping();
+        res.status(200).json({ message: 'All saves and player ident mappings deleted' });
     });
 });
 
-// Route for getting saves by playerId
 app.get('/getSavesByPlayerId/:playerId', (req, res) => {
     const playerId = req.params.playerId;
     const playerSaveFilePath = path.join(savesDirPath, `${playerId}.json`);
-
     try {
         if (fs.existsSync(playerSaveFilePath)) {
             const saves = JSON.parse(fs.readFileSync(playerSaveFilePath));
@@ -122,7 +112,6 @@ app.get('/getSavesByPlayerId/:playerId', (req, res) => {
     }
 });
 
-// Route for getting saves by ident
 app.get('/getSavesByIdent/:ident', (req, res) => {
     const ident = req.params.ident;
     const playerId = playerIdentMapping[ident];
@@ -146,7 +135,6 @@ app.get('/getSavesByIdent/:ident', (req, res) => {
     }
 });
 
-// Route for returning all player IDs
 app.get('/returnAllPlayerIds', (req, res) => {
     try {
         res.json(Object.keys(playerIdentMapping));
@@ -156,7 +144,6 @@ app.get('/returnAllPlayerIds', (req, res) => {
     }
 });
 
-// Route for getting full storage tree
 app.get('/fullStorageTree', (req, res) => {
     try {
         const tree = {
