@@ -1,10 +1,12 @@
 const express = require('express');
 const fs = require('fs');
+const cors = require('cors');
 const app = express();
 const port = 3000;
 const dataFilePath = '/app/data/items.json';
 
 app.use(express.json());
+app.use(cors());
 const loadData = () => {
     if (fs.existsSync(dataFilePath)) {
         const dataBuffer = fs.readFileSync(dataFilePath);
