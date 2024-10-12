@@ -35,6 +35,6 @@ app.delete('/items/:id', (req, res) => {
     fs.writeFileSync(dataFilePath, JSON.stringify(data, null, 2));
     res.status(204).send();
 });
-app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
+app.listen(port, '0.0.0.0', () => {
+    console.log(`Server running at http://0.0.0.0:${port}`);
 });
