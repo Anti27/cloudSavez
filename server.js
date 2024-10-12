@@ -12,9 +12,13 @@ app.use(express.json());
 app.use(cors());
 
 const loadData = () => {
-    if (fs.existsSync(dataFilePath)) {
-        const dataBuffer = fs.readFileSync(dataFilePath);
-        return JSON.parse(dataBuffer.toString());
+    try {
+        if (fs.existsSync(dataFilePath)) {
+            const dataBuffer = fs.readFileSync(dataFilePath);
+            return JSON.parse(dataBuffer.toString());
+        }
+    } catch (error) {
+        console.error('Error loading data:', error);
     }
     return {};
 };
@@ -22,16 +26,15 @@ const loadData = () => {
 let playerIdentMapping = loadData();
 
 const saveMapping = () => {
-    fs.writeFileSync(dataFilePath, JSON.stringify(playerIdentMapping, null, 2));
+    try {
+        fs.writeFileSync(dataFilePath, JSON.stringify(playerIdentMapping, null, 2));
+    } catch (error) {
+        console.error('Error saving mapping:', error);
+    }
 };
 
 const checkIdentUnique = (playerId, ident) => {
-    for (const id in playerIdentMapping) {
-        if (playerIdentMapping[id] === playerId && id === ident) {
-            return false;
-        }
-    }
-    return true;
+    return !Object.keys(playerIdentMapping).some(id => playerIdentMapping[id] === playerId && id === ident);
 };
 
 app.post('/save', (req, res) => {
@@ -51,7 +54,14 @@ app.post('/save', (req, res) => {
     }
 
     const playerSaveFilePath = path.join(savesDirPath, `${playerId}.json`);
-    const existingSaves = fs.existsSync(playerSaveFilePath) ? JSON.parse(fs.readFileSync(playerSaveFilePath)) : { lastSlots: [], historySlots: [] };
+    let existingSaves;
+
+    try {
+        existingSaves = fs.existsSync(playerSaveFilePath) ? JSON.parse(fs.readFileSync(playerSaveFilePath)) : { lastSlots: [], historySlots: [] };
+    } catch (error) {
+        console.error('Error reading existing saves:', error);
+        return res.status(500).json({ error: 'Failed to read existing saves' });
+    }
 
     if (existingSaves.lastSlots.length >= 5) {
         existingSaves.historySlots.push(existingSaves.lastSlots.shift());
@@ -59,13 +69,19 @@ app.post('/save', (req, res) => {
 
     existingSaves.lastSlots.push({ playerId, ident, deviceDescription, timeStamp, saveData });
 
-    fs.writeFileSync(playerSaveFilePath, JSON.stringify(existingSaves, null, 2));
-    res.status(201).json({ playerId, ident, deviceDescription, timeStamp, saveData });
+    try {
+        fs.writeFileSync(playerSaveFilePath, JSON.stringify(existingSaves, null, 2));
+        res.status(201).json({ playerId, ident, deviceDescription, timeStamp, saveData });
+    } catch (error) {
+        console.error('Error saving data:', error);
+        res.status(500).json({ error: 'Failed to save data' });
+    }
 });
 
 app.delete('/deleteAllSaves', (req, res) => {
     fs.readdir(savesDirPath, (err, files) => {
         if (err) {
+            console.error('Error reading saves directory:', err);
             return res.status(500).json({ error: 'Unable to scan directory: ' + err });
         }
 
@@ -77,47 +93,70 @@ app.delete('/deleteAllSaves', (req, res) => {
     });
 });
 
+// Route for getting saves by playerId
 app.get('/getSavesByPlayerId/:playerId', (req, res) => {
     const playerId = req.params.playerId;
-    const playerFile = `${savesDir}${playerId}.json`;
-    if (fs.existsSync(playerFile)) {
-        const saves = JSON.parse(fs.readFileSync(playerFile));
-        return res.json(saves);
+    const playerSaveFilePath = path.join(savesDirPath, `${playerId}.json`);
+
+    try {
+        if (fs.existsSync(playerSaveFilePath)) {
+            const saves = JSON.parse(fs.readFileSync(playerSaveFilePath));
+            res.json(saves);
+        } else {
+            res.status(404).json({ error: 'No saves found for this playerId' });
+        }
+    } catch (error) {
+        console.error('Error getting saves by playerId:', error);
+        res.status(500).json({ error: 'Failed to get saves by playerId' });
     }
-    res.status(404).json({ error: 'Saves not found' });
 });
 
+// Route for getting saves by ident
 app.get('/getSavesByIdent/:ident', (req, res) => {
     const ident = req.params.ident;
-    const identFile = `${savesDir}${ident}.json`;
-    if (fs.existsSync(identFile)) {
-        const identData = JSON.parse(fs.readFileSync(identFile));
-        const playerFile = `${savesDir}${identData.playerId}.json`;
-        if (fs.existsSync(playerFile)) {
-            const saves = JSON.parse(fs.readFileSync(playerFile));
-            return res.json(saves);
-        }
+    const playerId = playerIdentMapping[ident];
+
+    if (!playerId) {
+        return res.status(404).json({ error: 'No playerId found for this ident' });
     }
-    res.status(404).json({ error: 'Saves not found' });
+
+    const playerSaveFilePath = path.join(savesDirPath, `${playerId}.json`);
+
+    try {
+        if (fs.existsSync(playerSaveFilePath)) {
+            const saves = JSON.parse(fs.readFileSync(playerSaveFilePath));
+            res.json(saves);
+        } else {
+            res.status(404).json({ error: 'No saves found for this playerId' });
+        }
+    } catch (error) {
+        console.error('Error getting saves by ident:', error);
+        res.status(500).json({ error: 'Failed to get saves by ident' });
+    }
 });
 
+// Route for returning all player IDs
 app.get('/returnAllPlayerIds', (req, res) => {
-    const playerFiles = fs.readdirSync(savesDir).filter(file => file.endsWith('.json') && !file.includes('ident'));
-    const playerIds = playerFiles.map(file => file.replace('.json', ''));
-    res.json(playerIds);
+    try {
+        res.json(Object.keys(playerIdentMapping));
+    } catch (error) {
+        console.error('Error getting all player IDs:', error);
+        res.status(500).json({ error: 'Failed to get all player IDs' });
+    }
 });
 
+// Route for getting full storage tree
 app.get('/fullStorageTree', (req, res) => {
-    const storageTree = {};
-    const playerFiles = fs.readdirSync(savesDir).filter(file => file.endsWith('.json'));
-
-    playerFiles.forEach(file => {
-        const playerId = file.replace('.json', '');
-        const saves = JSON.parse(fs.readFileSync(`${savesDir}${file}`));
-        storageTree[playerId] = saves;
-    });
-
-    res.json(storageTree);
+    try {
+        const tree = {
+            playerIdentMapping,
+            saves: fs.readdirSync(savesDirPath).map(file => file.replace('.json', ''))
+        };
+        res.json(tree);
+    } catch (error) {
+        console.error('Error getting full storage tree:', error);
+        res.status(500).json({ error: 'Failed to get full storage tree' });
+    }
 });
 
 app.listen(port, '0.0.0.0', () => {
