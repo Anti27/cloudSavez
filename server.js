@@ -72,34 +72,23 @@ app.post('/save', (req, res) => {
         return res.status(500).json({ error: 'Failed to read existing saves' });
     }
 
-    const currentDate = new Date(timeStamp).toISOString().split('T')[0]; // Get the current date
-
-    // If we have reached the limit of last saves, analyze the oldest one
+    const currentDate = new Date(timeStamp).toISOString().split('T')[0];
     if (existingSaves.lastSlots.length >= 5) {
-        const oldestLastSave = existingSaves.lastSlots[0]; // Oldest last save
-
-        // Check if the oldest save is from the same date as any in historySlots
+        const oldestLastSave = existingSaves.lastSlots[0];
         const sameDateInHistory = existingSaves.historySlots.some(save => 
             new Date(save.timeStamp).toISOString().split('T')[0] === currentDate
         );
 
         if (sameDateInHistory) {
-            // If a same-date save exists in history, replace it
             existingSaves.historySlots = existingSaves.historySlots.filter(save => 
                 new Date(save.timeStamp).toISOString().split('T')[0] !== currentDate
             );
         } else if (existingSaves.historySlots.length >= 5) {
-            // If historySlots is full, remove the oldest history save
             existingSaves.historySlots.shift();
         }
-
-        // Move the oldest last save to history
         existingSaves.historySlots.push(oldestLastSave);
-        // Remove the oldest last save
         existingSaves.lastSlots.shift();
     }
-
-    // Add the new save to lastSlots
     existingSaves.lastSlots.push(new Save(playerId, ident, deviceDescription, timeStamp, saveData));
 
     try {
