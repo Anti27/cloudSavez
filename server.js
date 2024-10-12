@@ -88,7 +88,7 @@ app.post('/save', (req, res) => {
     }
 
     if (ident && !checkIdentUnique(ident)) {
-        return res.status(400).json({ error: 'Ident must be unique for a playerId' });
+        return res.status(400).json({ error: 'Ident must be unique across all player IDs' });
     }
 
     const newSave = new Save(playerId, ident, deviceDescription, timeStamp, saveData);
@@ -130,8 +130,22 @@ app.get('/getSavesByIdent/:ident', (req, res) => {
 });
 
 app.get('/returnAllPlayerIds', (req, res) => {
-    const playerFiles = fs.readdirSync(savesDir).map(file => file.replace('.json', ''));
-    res.json(playerFiles);
+    const playerFiles = fs.readdirSync(savesDir).filter(file => file.endsWith('.json') && !file.includes('ident'));
+    const playerIds = playerFiles.map(file => file.replace('.json', ''));
+    res.json(playerIds);
+});
+
+app.get('/fullStorageTree', (req, res) => {
+    const storageTree = {};
+    const playerFiles = fs.readdirSync(savesDir).filter(file => file.endsWith('.json'));
+
+    playerFiles.forEach(file => {
+        const playerId = file.replace('.json', '');
+        const saves = JSON.parse(fs.readFileSync(`${savesDir}${file}`));
+        storageTree[playerId] = saves;
+    });
+
+    res.json(storageTree);
 });
 
 app.listen(port, '0.0.0.0', () => {
