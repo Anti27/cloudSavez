@@ -77,7 +77,48 @@ app.delete('/deleteAllSaves', (req, res) => {
     });
 });
 
-// Other routes remain unchanged...
+app.get('/getSavesByPlayerId/:playerId', (req, res) => {
+    const playerId = req.params.playerId;
+    const playerFile = `${savesDir}${playerId}.json`;
+    if (fs.existsSync(playerFile)) {
+        const saves = JSON.parse(fs.readFileSync(playerFile));
+        return res.json(saves);
+    }
+    res.status(404).json({ error: 'Saves not found' });
+});
+
+app.get('/getSavesByIdent/:ident', (req, res) => {
+    const ident = req.params.ident;
+    const identFile = `${savesDir}${ident}.json`;
+    if (fs.existsSync(identFile)) {
+        const identData = JSON.parse(fs.readFileSync(identFile));
+        const playerFile = `${savesDir}${identData.playerId}.json`;
+        if (fs.existsSync(playerFile)) {
+            const saves = JSON.parse(fs.readFileSync(playerFile));
+            return res.json(saves);
+        }
+    }
+    res.status(404).json({ error: 'Saves not found' });
+});
+
+app.get('/returnAllPlayerIds', (req, res) => {
+    const playerFiles = fs.readdirSync(savesDir).filter(file => file.endsWith('.json') && !file.includes('ident'));
+    const playerIds = playerFiles.map(file => file.replace('.json', ''));
+    res.json(playerIds);
+});
+
+app.get('/fullStorageTree', (req, res) => {
+    const storageTree = {};
+    const playerFiles = fs.readdirSync(savesDir).filter(file => file.endsWith('.json'));
+
+    playerFiles.forEach(file => {
+        const playerId = file.replace('.json', '');
+        const saves = JSON.parse(fs.readFileSync(`${savesDir}${file}`));
+        storageTree[playerId] = saves;
+    });
+
+    res.json(storageTree);
+});
 
 app.listen(port, '0.0.0.0', () => {
     console.log(`Server running at http://0.0.0.0:${port}`);
