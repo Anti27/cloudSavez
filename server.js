@@ -43,7 +43,7 @@ const saveMapping = () => {
 };
 
 const checkIdentUnique = (playerId, ident) => {
-    return !Object.keys(playerIdentMapping).some(id => playerIdentMapping[id] === playerId && id === ident);
+    return !Object.keys(playerIdentMapping).some(id => playerIdentMapping[id] === playerId && id !== ident);
 };
 
 app.post('/save', (req, res) => {
@@ -52,13 +52,16 @@ app.post('/save', (req, res) => {
     if (!playerId || !deviceDescription || !timeStamp || !saveData) {
         return res.status(400).json({ error: "Invalid input data" });
     }
+
     if (ident && !checkIdentUnique(playerId, ident)) {
         return res.status(400).json({ error: "Ident must be unique for a playerId" });
     }
+
     if (ident) {
         playerIdentMapping[ident] = playerId;
         saveMapping();
     }
+
     const playerSaveFilePath = path.join(savesDirPath, `${playerId}.json`);
     let existingSaves;
     try {
@@ -71,7 +74,6 @@ app.post('/save', (req, res) => {
         existingSaves.historySlots.push(existingSaves.lastSlots.shift());
     }
     existingSaves.lastSlots.push(new Save(playerId, ident, deviceDescription, timeStamp, saveData));
-
     try {
         fs.writeFileSync(playerSaveFilePath, JSON.stringify(existingSaves, null, 2));
         res.status(201).json({ playerId, ident, deviceDescription, timeStamp, saveData });
