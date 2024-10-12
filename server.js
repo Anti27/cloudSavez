@@ -73,6 +73,7 @@ app.post('/save', (req, res) => {
         return res.status(500).json({ error: 'Failed to read existing saves' });
     }
 
+    // Limit the number of last saves to 5
     if (existingSaves.lastSlots.length >= 5) {
         existingSaves.historySlots.push(existingSaves.lastSlots.shift());
     }
