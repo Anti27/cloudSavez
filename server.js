@@ -34,14 +34,14 @@ const loadData = () => {
 };
 
 const checkIdentUnique = (ident) => {
-    const playerData = fs.readdirSync(savesDir);
-    for (const file of playerData) {
+    const playerFiles = fs.readdirSync(savesDir);
+    for (const file of playerFiles) {
         const content = JSON.parse(fs.readFileSync(`${savesDir}${file}`));
         if (content.ident === ident) {
-            return false;
+            return false; // Ident is not unique
         }
     }
-    return true;
+    return true; // Ident is unique
 };
 
 const manageSaves = (playerId, newSave) => {
@@ -78,17 +78,17 @@ const manageSaves = (playerId, newSave) => {
     fs.writeFileSync(playerFile, JSON.stringify(combinedSaves, null, 2));
 };
 
-createSavesDirIfNotExists(); // Ensure the saves directory exists
+createSavesDirIfNotExists();
 
 app.post('/save', (req, res) => {
     const { playerId, ident, deviceDescription, timeStamp, saveData } = req.body;
 
     if (!playerId || !deviceDescription || !timeStamp || !saveData) {
-        return res.status(400).send('Invalid input');
+        return res.status(400).json({ error: 'Invalid input' });
     }
 
     if (ident && !checkIdentUnique(ident)) {
-        return res.status(400).send('Ident must be unique');
+        return res.status(400).json({ error: 'Ident must be unique for a playerId' });
     }
 
     const newSave = new Save(playerId, ident, deviceDescription, timeStamp, saveData);
@@ -112,7 +112,7 @@ app.get('/getSavesByPlayerId/:playerId', (req, res) => {
         const saves = JSON.parse(fs.readFileSync(playerFile));
         return res.json(saves);
     }
-    res.status(404).send('Saves not found');
+    res.status(404).json({ error: 'Saves not found' });
 });
 
 app.get('/getSavesByIdent/:ident', (req, res) => {
@@ -126,7 +126,7 @@ app.get('/getSavesByIdent/:ident', (req, res) => {
             return res.json(saves);
         }
     }
-    res.status(404).send('Saves not found');
+    res.status(404).json({ error: 'Saves not found' });
 });
 
 app.get('/returnAllPlayerIds', (req, res) => {
