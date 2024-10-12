@@ -1,175 +1,63 @@
-const express = require('express');
-const fs = require('fs');
-const cors = require('cors');
-const path = require('path');
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Save Test</title>
+</head>
+<body>
+    <h1>Save Test</h1>
+    <script>
+        const apiUrl = 'https://cloudsavez-production.up.railway.app';
 
-const app = express();
-const port = 3000;
-const dataFilePath = '/app/data/items.json';
-const savesDirPath = '/app/data/saves/';
+        async function deleteAllSaves() {
+            try {
+                const response = await fetch(`${apiUrl}/deleteAllSaves`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
 
-app.use(express.json());
-app.use(cors());
-
-class Save {
-    constructor(playerId, ident, deviceDescription, timeStamp, saveData) {
-        this.playerId = playerId;
-        this.ident = ident || '';
-        this.deviceDescription = deviceDescription;
-        this.timeStamp = timeStamp;
-        this.saveData = saveData;
-    }
-}
-
-const loadData = () => {
-    try {
-        if (fs.existsSync(dataFilePath)) {
-            const dataBuffer = fs.readFileSync(dataFilePath);
-            return JSON.parse(dataBuffer.toString());
-        }
-    } catch (error) {
-        console.error('Error loading data:', error);
-    }
-    return {};
-};
-
-let playerIdentMapping = loadData();
-
-const saveMapping = () => {
-    try {
-        fs.writeFileSync(dataFilePath, JSON.stringify(playerIdentMapping, null, 2));
-    } catch (error) {
-        console.error('Error saving mapping:', error);
-    }
-};
-
-const checkIdentUnique = (playerId, ident) => {
-    return !Object.keys(playerIdentMapping).some(id => playerIdentMapping[id] === playerId && id === ident);
-};
-
-app.post('/save', (req, res) => {
-    const { playerId, ident, deviceDescription, timeStamp, saveData } = req.body;
-
-    if (!playerId || !deviceDescription || !timeStamp || !saveData) {
-        return res.status(400).json({ error: "Invalid input data" });
-    }
-
-    if (ident && !checkIdentUnique(playerId, ident)) {
-        return res.status(400).json({ error: "Ident must be unique for a playerId" });
-    }
-
-    if (ident) {
-        playerIdentMapping[ident] = playerId;
-        saveMapping();
-    }
-
-    const playerSaveFilePath = path.join(savesDirPath, `${playerId}.json`);
-    let existingSaves;
-
-    try {
-        existingSaves = fs.existsSync(playerSaveFilePath) ? JSON.parse(fs.readFileSync(playerSaveFilePath)) : { lastSlots: [], historySlots: [] };
-    } catch (error) {
-        console.error('Error reading existing saves:', error);
-        return res.status(500).json({ error: 'Failed to read existing saves' });
-    }
-
-    // Limit the number of last saves to 5
-    if (existingSaves.lastSlots.length >= 5) {
-        existingSaves.historySlots.push(existingSaves.lastSlots.shift());
-    }
-
-    existingSaves.lastSlots.push(new Save(playerId, ident, deviceDescription, timeStamp, saveData));
-
-    try {
-        fs.writeFileSync(playerSaveFilePath, JSON.stringify(existingSaves, null, 2));
-        res.status(201).json({ playerId, ident, deviceDescription, timeStamp, saveData });
-    } catch (error) {
-        console.error('Error saving data:', error);
-        res.status(500).json({ error: 'Failed to save data' });
-    }
-});
-
-app.delete('/deleteAllSaves', (req, res) => {
-    fs.readdir(savesDirPath, (err, files) => {
-        if (err) {
-            console.error('Error reading saves directory:', err);
-            return res.status(500).json({ error: 'Unable to scan directory: ' + err });
+                const result = await response.json();
+                console.log('Delete All Saves Response:', result);
+            } catch (error) {
+                console.error('Error deleting all saves:', error);
+            }
         }
 
-        files.forEach(file => {
-            fs.unlinkSync(path.join(savesDirPath, file));
-        });
+        async function saveData(playerId, ident, deviceDescription, timeStamp, saveData) {
+            try {
+                const response = await fetch(`${apiUrl}/save`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ playerId, ident, deviceDescription, timeStamp, saveData }),
+                });
 
-        res.status(200).json({ message: 'All saves deleted' });
-    });
-});
-
-// Route for getting saves by playerId
-app.get('/getSavesByPlayerId/:playerId', (req, res) => {
-    const playerId = req.params.playerId;
-    const playerSaveFilePath = path.join(savesDirPath, `${playerId}.json`);
-
-    try {
-        if (fs.existsSync(playerSaveFilePath)) {
-            const saves = JSON.parse(fs.readFileSync(playerSaveFilePath));
-            res.json(saves);
-        } else {
-            res.status(404).json({ error: 'No saves found for this playerId' });
+                const result = await response.json();
+                console.log('Save Response:', result);
+            } catch (error) {
+                console.error('Error saving data:', error);
+            }
         }
-    } catch (error) {
-        console.error('Error getting saves by playerId:', error);
-        res.status(500).json({ error: 'Failed to get saves by playerId' });
-    }
-});
 
-// Route for getting saves by ident
-app.get('/getSavesByIdent/:ident', (req, res) => {
-    const ident = req.params.ident;
-    const playerId = playerIdentMapping[ident];
+        async function test() {
+            await deleteAllSaves();
+            await saveData('player123', 'ident123', 'Chrome Browser', new Date().toISOString(), { score: 100 });
+            await saveData('player456', 'ident456', 'Firefox Browser', new Date().toISOString(), { score: 200 });
+            await saveData('player789', 'ident789', 'Safari Browser', new Date().toISOString(), { score: 300 });
 
-    if (!playerId) {
-        return res.status(404).json({ error: 'No playerId found for this ident' });
-    }
+            // Fetch saves by playerId to check if they were saved correctly
+            await fetchSaves('player123');
+            await fetchSaves('player456');
+            await fetchSaves('player789');
 
-    const playerSaveFilePath = path.join(savesDirPath, `${playerId}.json`);
-
-    try {
-        if (fs.existsSync(playerSaveFilePath)) {
-            const saves = JSON.parse(fs.readFileSync(playerSaveFilePath));
-            res.json(saves);
-        } else {
-            res.status(404).json({ error: 'No saves found for this playerId' });
+            // Fetch all player IDs
+            await fetchAllPlayerIds();
         }
-    } catch (error) {
-        console.error('Error getting saves by ident:', error);
-        res.status(500).json({ error: 'Failed to get saves by ident' });
-    }
-});
 
-// Route for returning all player IDs
-app.get('/returnAllPlayerIds', (req, res) => {
-    try {
-        res.json(Object.keys(playerIdentMapping));
-    } catch (error) {
-        console.error('Error getting all player IDs:', error);
-        res.status(500).json({ error: 'Failed to get all player IDs' });
-    }
-});
-
-// Route for getting full storage tree
-app.get('/fullStorageTree', (req, res) => {
-    try {
-        const tree = {
-            playerIdentMapping,
-            saves: fs.readdirSync(savesDirPath).map(file => file.replace('.json', ''))
-        };
-        res.json(tree);
-    } catch (error) {
-        console.error('Error getting full storage tree:', error);
-        res.status(500).json({ error: 'Failed to get full storage tree' });
-    }
-});
-
-app.listen(port, '0.0.0.0', () => {
-    console.log(`Server running at http://0.0.0.0:${port}`);
-});
+        async function fetchSaves(playerId) {
+            try {
+                const response = await fetch(`${api
