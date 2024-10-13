@@ -154,7 +154,19 @@ app.get('/getSavesByIdent/:ident', (req, res) => {
     }
 });
 
-app.get('/returnAllPlayerIds', (req, res) => {
+app.get('/returnAllPlayerIdsFromFiles', (req, res) => {
+    try {
+        const playerIds = fs.readdirSync(savesDirPath)
+            .filter(file => file.endsWith('.json'))
+            .map(file => path.basename(file, '.json'));
+        res.json(playerIds);
+    } catch (error) {
+        console.error('Error getting all player IDs from files:', error);
+        res.status(500).json({ error: 'Failed to get all player IDs from files' });
+    }
+});
+
+app.get('/returnAllIdents', (req, res) => {
     try {
         res.json(Object.keys(playerIdentMapping));
     } catch (error) {
