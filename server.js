@@ -170,8 +170,8 @@ app.get('/returnAllIdents', (req, res) => {
     try {
         res.json(Object.keys(playerIdentMapping));
     } catch (error) {
-        console.error('Error getting all player IDs:', error);
-        res.status(500).json({ error: 'Failed to get all player IDs' });
+        console.error('Error getting all idents:', error);
+        res.status(500).json({ error: 'Failed to get all idents' });
     }
 });
 
