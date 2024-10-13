@@ -157,9 +157,27 @@ app.get('/getSavesByIdent/:ident', (req, res) => {
 app.get('/returnAllPlayerIdsFromFiles', (req, res) => {
     try {
         const playerIds = fs.readdirSync(savesDirPath)
-            .filter(file => file.endsWith('.json'))
-            .map(file => path.basename(file, '.json'));
-        res.json(playerIds);
+            .filter(file => file.endsWith('.json'))  // Only keep JSON files
+            .map(file => path.basename(file, '.json'))  // Remove the '.json' extension
+            .filter(playerId => {
+                const playerSaveFilePath = path.join(savesDirPath, `${playerId}.json`);
+                
+                // Check if the file contains valid JSON content
+                try {
+                    const fileContent = fs.readFileSync(playerSaveFilePath, 'utf8');
+                    if (fileContent.trim()) {
+                        JSON.parse(fileContent);  // Try to parse the content
+                        return true;  // Return true if it's valid JSON
+                    }
+                } catch (error) {
+                    console.warn(`Skipping invalid or empty file: ${file}`);
+                    return false;  // Skip files that can't be parsed or are empty
+                }
+
+                return false;  // Skip empty files
+            });
+
+        res.json(playerIds);  // Return the list of playerIds (filenames without extension)
     } catch (error) {
         console.error('Error getting all player IDs from files:', error);
         res.status(500).json({ error: 'Failed to get all player IDs from files' });
