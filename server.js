@@ -8,7 +8,7 @@ const port = 3000;
 const dataFilePath = '/app/data/items.json';
 const savesDirPath = '/app/data/saves/';
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(cors());
 
 class Save {
