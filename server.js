@@ -206,6 +206,16 @@ app.get('/fullStorageTree', (req, res) => {
     }
 });
 
+app.get('/getPlayerIdByIdent/:ident', (req, res) => {
+    const ident = req.params.ident;
+    const playerId = playerIdentMapping[ident];
+    if (playerId) {
+        res.json({ playerId });
+    } else {
+        res.status(404).json({ error: 'No playerId found for this ident' });
+    }
+});
+
 app.listen(port, '0.0.0.0', () => {
     console.log(`Server running at http://0.0.0.0:${port}`);
 });
